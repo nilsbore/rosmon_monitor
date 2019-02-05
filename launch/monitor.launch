@@ -1,0 +1,9 @@
+<launch>
+
+<arg name="config_file"/>
+
+<node pkg="rosmon_monitor" type="test_monitor" name="test_monitor" output="screen">
+  <param name="config_file" value="$(arg config_file)" type="string"/>
+</node>
+
+</launch>

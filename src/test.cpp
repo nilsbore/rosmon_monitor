@@ -1,6 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <fort.hpp>
+#include <ros/ros.h>
+#include <ros/master.h>
+#include <rosmon/State.h>
+#include <rosmon/StartStop.h>
 #include <yaml-cpp/yaml.h>
 #include <regex>
 
@@ -8,6 +12,7 @@ using namespace std;
 
 struct MonitorNode {
     string name;
+    string rosmon_server;
     int restarts;
     double ram;
     double load;
@@ -99,10 +104,10 @@ struct MonitorGroup {
     MonitorGroup(const string& self_name)
     {
         name = "Self";
-        nodes_regex = regex(self_name);
+        nodes_regex = regex(self_name.substr(1, self_name.size()-1));
         max_ram = MAX_INF;
         max_load = MAX_INF;
-        max_restarts = MAX_INF;
+        max_restarts = 5; // MAX_INF;
         on_kill = Action::none;
         on_max = Action::none;
     }
@@ -160,37 +165,169 @@ void print_group(const MonitorGroup& group)
     std::cout << table.to_string() << std::endl;
 }
 
-int main()
+vector<string> get_published_topics()
 {
-    YAML::Node config = YAML::LoadFile("../example/groups.yaml");
+    ros::master::V_TopicInfo master_topics;
+    ros::master::getTopics(master_topics);
 
-    if (config.Type() != YAML::NodeType::Sequence) {
-        cout << "It's not a sequence, quitting!" << endl;
-        exit(-1);
+    vector<string> topics;
+    for (ros::master::V_TopicInfo::iterator it = master_topics.begin(); it != master_topics.end(); it++) {
+        const ros::master::TopicInfo& info = *it;
+        std::cout << "topic_" << it - master_topics.begin() << ": " << info.name << std::endl;
+        topics.push_back(info.name);
     }
 
-    vector<MonitorGroup> groups = { MonitorGroup("node_name") };
+    return topics;
+}
 
-    for (const YAML::Node& group : config) {
-        if (!group["group"]) {
-            cout << "Group does not contain name, quitting" << endl;
-            continue;
+class MonitorServer {
+
+    ros::NodeHandle node;
+    map<string, ros::Subscriber> subscribers;
+	ros::Publisher abort_pub;
+    vector<MonitorGroup> groups;
+
+public:
+
+    MonitorServer()
+    {
+        string config_file;
+        if (!ros::param::get("~config_file", config_file)) {
+            ROS_ERROR("Need to supply the config file parameter!");
+            return;
         }
-        if (!group["nodes"]) {
-            cout << "Group " << group["group"] << " does not contain nodes, quitting" << endl;
-            continue;
+
+        YAML::Node config = YAML::LoadFile(config_file);
+
+        if (config.Type() != YAML::NodeType::Sequence) {
+            ROS_ERROR("Config yaml file is not a sequence, quitting!");
+            return;
         }
 
-        groups.push_back(MonitorGroup(group));
+        ROS_INFO("Node name: %s", ros::this_node::getName().c_str());
+        groups = { MonitorGroup(ros::this_node::getName()) };
+
+        for (const YAML::Node& group : config) {
+            if (!group["group"]) {
+                ROS_ERROR("Group does not contain name, quitting");
+                continue;
+            }
+            if (!group["nodes"]) {
+                ROS_ERROR("Group %s does not contain nodes, quitting", group["group"].as<string>().c_str());
+                continue;
+            }
+
+            groups.push_back(MonitorGroup(group));
+        }
+
+        vector<MonitorNode> nodes = get_example_nodes();
+
+        match_nodes_to_groups(nodes, groups);
+
+		//abort_pub = node.
+
+        ros::Rate r(1); // 1 hz
+        while (ros::ok()) {
+            maybe_subscribe();
+            handle_bounds();
+            ros::spinOnce();
+            r.sleep();
+        }
     }
 
-    vector<MonitorNode> nodes = get_example_nodes();
+    void perform_action(const MonitorNode& mn, const MonitorGroup::Action& action)
+    {
+        //uint8_t node_action;
+        rosmon::StartStop srv;
+        switch (action) {
+            case MonitorGroup::Action::kill:
+                srv.request.action = srv.request.STOP;
+                break;
+            case MonitorGroup::Action::restart:
+                srv.request.action = srv.request.RESTART;
+                break;
+            case MonitorGroup::Action::abort:
 
-    match_nodes_to_groups(nodes, groups);
+                return;
+            case MonitorGroup::Action::none:
+                return;
+        }
 
-    for (const MonitorGroup& group : groups) {
-        print_group(group);
+        string service_name = string("/") + mn.rosmon_server + "/start_stop";
+        ros::ServiceClient client = node.serviceClient<rosmon::StartStop>(service_name);
+        srv.request.node = mn.name;
+        if (client.call(srv)) {
+            ROS_INFO("ROSMON successfully executed action %s", service_name.c_str());
+        }
+        else {
+            ROS_ERROR("Failed to call service %s", service_name.c_str());
+        }
     }
+
+    void handle_bounds()
+    {
+        for (const MonitorGroup& group : groups) {
+            for (const pair<string, MonitorNode>& p : group.nodes) {
+                if (p.second.restarts >= group.max_restarts) {
+                    perform_action(p.second, MonitorGroup::Action::kill);
+                }
+                else if (p.second.load > group.max_load || p.second.ram > group.max_ram) {
+                    perform_action(p.second, group.on_max);
+                }
+            }
+        }
+    }
+
+    static MonitorNode rosmon_to_monitor_node(const rosmon::NodeState& node, const string& rosmon_server)
+    {
+        MonitorNode mn;
+        mn.name = node.name;
+        mn.restarts = node.restart_count;
+        mn.load = node.user_load;
+        mn.ram = node.memory;
+        mn.rosmon_server = rosmon_server;
+        return mn;
+    }
+
+    void status_callback(const rosmon::State::ConstPtr& msg, const string rosmon_server)
+    {
+        vector<MonitorNode> nodes;
+        nodes.reserve(msg->nodes.size());
+        for (const rosmon::NodeState& state : msg->nodes) {
+            nodes.push_back(rosmon_to_monitor_node(state, rosmon_server));
+        }
+        match_nodes_to_groups(nodes, groups);
+
+        for (const MonitorGroup& group : groups) {
+            print_group(group);
+        }
+    }
+
+    void maybe_subscribe()
+    {
+
+        regex rosmon_regex("\/rosmon_[0-9]*\/state");
+        vector<string> topics = get_published_topics();
+
+        for (const string& topic : topics) {
+            if (regex_match(topic, rosmon_regex) && subscribers.count(topic) == 0) {
+                //subscribers[topic] = node.subscribe(topic, 1000, &MonitorServer::status_callback, this);
+				std::string name = topic.substr(1, topic.substr(1, topic.size()-1).find("/"));
+                subscribers[topic] = node.subscribe<rosmon::State>(topic, 1000, boost::bind(&MonitorServer::status_callback, this, _1, name));
+            }
+        }
+
+    }
+
+};
+
+
+int main(int argc, char** argv)
+{
+    ros::init(argc, argv, "rosmon_monitor_node");
+    ros::NodeHandle ros_node;
+
+    MonitorServer ms;
 
     return 0;
 }
