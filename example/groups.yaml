@@ -1,0 +1,16 @@
+
+
+
+- group: Essential
+  nodes: ["behavior_tree", "uavcan_to_ros_bridge", "ros_to_uavcan_bridge", "stim_driver"]
+  max_load:
+  max_ram:
+  on_kill: abort
+
+- group: Default
+  nodes: ".*"
+  max_load: 0.5
+  max_ram: 0.5
+  on_max: restart
+  max_restarts: 10
+  on_kill:
