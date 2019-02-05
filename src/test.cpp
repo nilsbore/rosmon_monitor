@@ -5,6 +5,7 @@
 #include <ros/master.h>
 #include <rosmon/State.h>
 #include <rosmon/StartStop.h>
+#include <std_msgs/Empty.h>
 #include <yaml-cpp/yaml.h>
 #include <regex>
 
@@ -108,7 +109,8 @@ struct MonitorGroup {
         max_ram = MAX_INF;
         max_load = MAX_INF;
         max_restarts = 5; // MAX_INF;
-        on_kill = Action::none;
+        //on_kill = Action::none;
+        on_kill = Action::abort;
         on_max = Action::none;
     }
 };
@@ -136,6 +138,8 @@ vector<MonitorNode> get_example_nodes()
     for (const string& name : example_names) {
         MonitorNode node;
         node.name = name;
+        node.restarts = node.ram = node.load = 0;
+        node.status = 1; // running
         nodes.push_back(node);
     }
 
@@ -224,7 +228,7 @@ public:
 
         match_nodes_to_groups(nodes, groups);
 
-		//abort_pub = node.
+		abort_pub = node.advertise<std_msgs::Empty>("/abort", 1000);
 
         ros::Rate r(1); // 1 hz
         while (ros::ok()) {
@@ -247,11 +251,13 @@ public:
                 srv.request.action = srv.request.RESTART;
                 break;
             case MonitorGroup::Action::abort:
-
+                abort_pub.publish(std_msgs::Empty());
                 return;
             case MonitorGroup::Action::none:
                 return;
         }
+
+        ROS_INFO("Executing action with node %s", mn.name.c_str());
 
         string service_name = string("/") + mn.rosmon_server + "/start_stop";
         ros::ServiceClient client = node.serviceClient<rosmon::StartStop>(service_name);
@@ -270,9 +276,13 @@ public:
             for (const pair<string, MonitorNode>& p : group.nodes) {
                 if (p.second.restarts >= group.max_restarts) {
                     perform_action(p.second, MonitorGroup::Action::kill);
+                    perform_action(p.second, group.on_kill);
                 }
                 else if (p.second.load > group.max_load || p.second.ram > group.max_ram) {
                     perform_action(p.second, group.on_max);
+                }
+                else if (p.second.status == rosmon::NodeState::IDLE || p.second.status == rosmon::NodeState::CRASHED) { // dead
+                    perform_action(p.second, group.on_kill);
                 }
             }
         }
@@ -286,6 +296,7 @@ public:
         mn.load = node.user_load;
         mn.ram = node.memory;
         mn.rosmon_server = rosmon_server;
+        mn.status = node.state;
         return mn;
     }
 
