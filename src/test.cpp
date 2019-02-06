@@ -18,6 +18,16 @@ struct MonitorNode {
     double ram;
     double load;
     int status;
+
+    string get_status_string() const
+    {
+        if (status == rosmon::NodeState::RUNNING) {
+            return "alive";
+        }
+        else {
+            return "dead";
+        }
+    }
 };
 
 struct MonitorGroup {
@@ -152,10 +162,10 @@ void print_group(const MonitorGroup& group)
     table.set_border_style(FT_DOUBLE2_STYLE);
 
     // Fill table with data
-    table << fort::header << group.name << "Active" << "Load" << "RAM" << "Restarts" << fort::endr;
+    table << fort::header << group.name << "Status" << "Load" << "RAM" << "Restarts" << fort::endr;
 
     for (const pair<string, MonitorNode>& p : group.nodes) {
-        table << p.first << "Yes" << p.second.load << p.second.ram << p.second.restarts << fort::endr;
+        table << p.first << p.second.get_status_string() << p.second.load << p.second.ram << p.second.restarts << fort::endr;
     }
     table << fort::separator
           << "Max" << "-" << MonitorGroup::bound_to_string(group.max_load) << MonitorGroup::bound_to_string(group.max_ram) << MonitorGroup::bound_to_string(group.max_restarts) << fort::endr
