@@ -125,7 +125,7 @@ struct MonitorGroup {
     }
 };
 
-const int MonitorGroup::MAX_INF = 1000;
+const int MonitorGroup::MAX_INF = 100000;
 
 void match_nodes_to_groups(const vector<MonitorNode>& nodes, vector<MonitorGroup>& groups)
 {
@@ -234,9 +234,8 @@ public:
             groups.push_back(MonitorGroup(group));
         }
 
-        vector<MonitorNode> nodes = get_example_nodes();
-
-        match_nodes_to_groups(nodes, groups);
+        //vector<MonitorNode> nodes = get_example_nodes();
+        //match_nodes_to_groups(nodes, groups);
 
 		abort_pub = node.advertise<std_msgs::Empty>("/abort", 1000);
 
@@ -304,7 +303,7 @@ public:
         mn.name = node.name;
         mn.restarts = node.restart_count;
         mn.load = node.user_load;
-        mn.ram = node.memory;
+        mn.ram = 1e-9f*double(node.memory);
         mn.rosmon_server = rosmon_server;
         mn.status = node.state;
         return mn;
