@@ -5,6 +5,7 @@ project(rosmon_monitor)
 # add_compile_options(-std=c++11)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
+#set(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake ${CMAKE_MODULE_PATH})
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -16,6 +17,9 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
+set(CURSES_NEED_NCURSES TRUE)
+set(CURSES_NEED_WIDE TRUE)
+find_package(Curses REQUIRED)
 
 add_subdirectory(external)
 
@@ -120,7 +124,9 @@ catkin_package(
 include_directories(
 # include
   external/libfort/lib
+  external/shelf-pack-cpp/include
   ${catkin_INCLUDE_DIRS}
+  ${CURSES_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -138,7 +144,8 @@ include_directories(
 ## The recommended prefix ensures that target names across packages don't collide
 # add_executable(${PROJECT_NAME}_node src/rosmon_monitor_node.cpp)
 add_executable(test_monitor src/test.cpp external/libfort/lib/fort.c)
-target_link_libraries(test_monitor termcolor yaml-cpp ${catkin_LIBRARIES})
+#target_link_libraries(test_monitor termcolor yaml-cpp ${catkin_LIBRARIES} ${CURSES_LIBRARIES})
+target_link_libraries(test_monitor termcolor yaml-cpp ${catkin_LIBRARIES} -lncursesw)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

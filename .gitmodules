@@ -7,3 +7,6 @@
 [submodule "external/yaml-cpp"]
 	path = external/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
+[submodule "external/shelf-pack-cpp"]
+	path = external/shelf-pack-cpp
+	url = https://github.com/mapbox/shelf-pack-cpp.git
