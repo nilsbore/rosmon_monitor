@@ -22,6 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 #set(CURSES_NEED_NCURSES TRUE)
 #set(CURSES_NEED_WIDE TRUE)
 #find_package(Curses REQUIRED)
+find_package(  yaml-cpp REQUIRED )
 
 add_subdirectory(external)
 
@@ -127,6 +128,7 @@ include_directories(
   include
   external/libfort/lib
   #external/shelf-pack-cpp/include
+  ${YAML_CPP_INCLUDE_DIR}
   ${catkin_INCLUDE_DIRS}
   #${CURSES_INCLUDE_DIR}
 )
@@ -150,7 +152,7 @@ include_directories(
 add_executable(test_monitor src/test.cpp external/libfort/lib/fort.c)
 
 #target_link_libraries(test_monitor termcolor yaml-cpp ${catkin_LIBRARIES} ${CURSES_LIBRARIES})
-target_link_libraries(test_monitor termcolor yaml-cpp streamflood ${catkin_LIBRARIES})
+target_link_libraries(test_monitor yaml-cpp streamflood ${YAML_CPP_LIBRARIES} ${catkin_LIBRARIES})
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
