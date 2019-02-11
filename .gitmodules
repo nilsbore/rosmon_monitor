@@ -1,9 +1,6 @@
 [submodule "external/libfort"]
 	path = external/libfort
 	url = https://github.com/seleznevae/libfort.git
-[submodule "external/termcolor"]
-	path = external/termcolor
-	url = https://github.com/ikalnytskyi/termcolor.git
 [submodule "external/yaml-cpp"]
 	path = external/yaml-cpp
 	url = https://github.com/jbeder/yaml-cpp.git
