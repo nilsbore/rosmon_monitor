@@ -22,7 +22,7 @@ find_package(catkin REQUIRED COMPONENTS
 #set(CURSES_NEED_NCURSES TRUE)
 #set(CURSES_NEED_WIDE TRUE)
 #find_package(Curses REQUIRED)
-find_package(  yaml-cpp REQUIRED )
+find_package(yaml-cpp REQUIRED)
 
 add_subdirectory(external)
 
