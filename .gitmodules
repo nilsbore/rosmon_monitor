@@ -10,3 +10,6 @@
 [submodule "external/shelf-pack-cpp"]
 	path = external/shelf-pack-cpp
 	url = https://github.com/mapbox/shelf-pack-cpp.git
+[submodule "external/streamflood"]
+	path = external/streamflood
+	url = https://github.com/nilsbore/streamflood.git
