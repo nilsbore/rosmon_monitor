@@ -15,6 +15,7 @@ set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99")
 find_package(catkin REQUIRED COMPONENTS
   roscpp
   rosmon
+  rosmon_msgs
 )
 
 ## System dependencies are found with CMake's conventions

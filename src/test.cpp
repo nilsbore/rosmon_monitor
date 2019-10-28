@@ -3,12 +3,13 @@
 #include <fort.hpp>
 #include <ros/ros.h>
 #include <ros/master.h>
-#include <rosmon/State.h>
-#include <rosmon/StartStop.h>
+#include <rosmon_msgs/State.h>
+#include <rosmon_msgs/StartStop.h>
 #include <std_msgs/Empty.h>
 #include <yaml-cpp/yaml.h>
 #include <regex>
 #include <streamflood/streamflood.h>
+#include <numeric>
 
 using namespace std;
 
@@ -22,7 +23,7 @@ struct MonitorNode {
 
     string get_status_string() const
     {
-        if (status == rosmon::NodeState::RUNNING) {
+        if (status == rosmon_msgs::NodeState::RUNNING) {
             return "alive";
         }
         else {
@@ -263,7 +264,7 @@ public:
     void perform_action(const MonitorNode& mn, const MonitorGroup::Action& action)
     {
         //uint8_t node_action;
-        rosmon::StartStop srv;
+        rosmon_msgs::StartStop srv;
         switch (action) {
             case MonitorGroup::Action::kill:
                 srv.request.action = srv.request.STOP;
@@ -281,7 +282,7 @@ public:
         ROS_INFO("Executing action with node %s", mn.name.c_str());
 
         string service_name = string("/") + mn.rosmon_server + "/start_stop";
-        ros::ServiceClient client = node.serviceClient<rosmon::StartStop>(service_name);
+        ros::ServiceClient client = node.serviceClient<rosmon_msgs::StartStop>(service_name);
         srv.request.node = mn.name;
         if (client.call(srv)) {
             ROS_INFO("ROSMON successfully executed action %s", service_name.c_str());
@@ -302,14 +303,14 @@ public:
                 else if (p.second.load > group.max_load || p.second.ram > group.max_ram) {
                     perform_action(p.second, group.on_max);
                 }
-                else if (p.second.status == rosmon::NodeState::IDLE || p.second.status == rosmon::NodeState::CRASHED) { // dead
+                else if (p.second.status == rosmon_msgs::NodeState::IDLE || p.second.status == rosmon_msgs::NodeState::CRASHED) { // dead
                     perform_action(p.second, group.on_kill);
                 }
             }
         }
     }
 
-    static MonitorNode rosmon_to_monitor_node(const rosmon::NodeState& node, const string& rosmon_server)
+    static MonitorNode rosmon_to_monitor_node(const rosmon_msgs::NodeState& node, const string& rosmon_server)
     {
         MonitorNode mn;
         mn.name = node.name;
@@ -321,11 +322,11 @@ public:
         return mn;
     }
 
-    void status_callback(const rosmon::State::ConstPtr& msg, const string rosmon_server)
+    void status_callback(const rosmon_msgs::State::ConstPtr& msg, const string rosmon_server)
     {
         vector<MonitorNode> nodes;
         nodes.reserve(msg->nodes.size());
-        for (const rosmon::NodeState& state : msg->nodes) {
+        for (const rosmon_msgs::NodeState& state : msg->nodes) {
             nodes.push_back(rosmon_to_monitor_node(state, rosmon_server));
         }
         match_nodes_to_groups(nodes, groups);
@@ -351,7 +352,7 @@ public:
             if (regex_match(topic, rosmon_regex) && subscribers.count(topic) == 0) {
                 //subscribers[topic] = node.subscribe(topic, 1000, &MonitorServer::status_callback, this);
 				std::string name = topic.substr(1, topic.substr(1, topic.size()-1).find("/"));
-                subscribers[topic] = node.subscribe<rosmon::State>(topic, 1000, boost::bind(&MonitorServer::status_callback, this, _1, name));
+                subscribers[topic] = node.subscribe<rosmon_msgs::State>(topic, 1000, boost::bind(&MonitorServer::status_callback, this, _1, name));
             }
         }
 
